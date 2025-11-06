@@ -64,24 +64,28 @@ export default function BudgetApp() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">Gerar Novo Orçamento</h1>
-        
-        <div className="grid lg:grid-cols-2 gap-8">
-          <div>
-            <QuoteForm onSubmit={handleGenerateQuote} isLoading={isLoading} />
+      <main className="container mx-auto px-4 py-8 max-w-4xl">
+        {!quote ? (
+          <QuoteForm onSubmit={handleGenerateQuote} isLoading={isLoading} />
+        ) : (
+          <div className="space-y-6">
+            <ResultSection
+              quote={quote}
+              projectData={projectData}
+              isLoading={false}
+            />
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setQuote(null);
+                setProjectData(null);
+              }}
+              className="w-full"
+            >
+              Gerar Novo Orçamento
+            </Button>
           </div>
-          
-          <div>
-            {quote && projectData && (
-              <ResultSection
-                quote={quote}
-                projectData={projectData}
-                isLoading={false}
-              />
-            )}
-          </div>
-        </div>
+        )}
       </main>
     </div>
   );
