@@ -14,7 +14,166 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      chat_messages: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          quote_id: string
+          role: string
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          quote_id: string
+          role: string
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          quote_id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      counter_offers: {
+        Row: {
+          analysis: string
+          client_implementation: number
+          client_recurring: number
+          created_at: string | null
+          id: string
+          new_implementation_fee: number | null
+          new_recurring_fee: number | null
+          quote_id: string
+          recommendation: string
+          suggested_response: string
+        }
+        Insert: {
+          analysis: string
+          client_implementation: number
+          client_recurring: number
+          created_at?: string | null
+          id?: string
+          new_implementation_fee?: number | null
+          new_recurring_fee?: number | null
+          quote_id: string
+          recommendation: string
+          suggested_response: string
+        }
+        Update: {
+          analysis?: string
+          client_implementation?: number
+          client_recurring?: number
+          created_at?: string | null
+          id?: string
+          new_implementation_fee?: number | null
+          new_recurring_fee?: number | null
+          quote_id?: string
+          recommendation?: string
+          suggested_response?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "counter_offers_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotes: {
+        Row: {
+          annual_revenue: string
+          client_size: string
+          client_value: string
+          complexity: string
+          created_at: string | null
+          desired_margin: number
+          duration: number
+          estimated_loss: number
+          id: string
+          implementation_fee: number
+          integration_needs: string
+          people_involved: number
+          process_to_optimize: string
+          reasoning: string
+          recurring_fee: number
+          security_level: string
+          support_level: string
+          team_seniority: string
+          team_size: number
+          time_spent: number
+          tools: Json
+          updated_at: string | null
+          urgency: string
+          user_id: string
+        }
+        Insert: {
+          annual_revenue: string
+          client_size: string
+          client_value: string
+          complexity: string
+          created_at?: string | null
+          desired_margin: number
+          duration: number
+          estimated_loss: number
+          id?: string
+          implementation_fee: number
+          integration_needs: string
+          people_involved: number
+          process_to_optimize: string
+          reasoning: string
+          recurring_fee: number
+          security_level: string
+          support_level: string
+          team_seniority: string
+          team_size: number
+          time_spent: number
+          tools?: Json
+          updated_at?: string | null
+          urgency: string
+          user_id: string
+        }
+        Update: {
+          annual_revenue?: string
+          client_size?: string
+          client_value?: string
+          complexity?: string
+          created_at?: string | null
+          desired_margin?: number
+          duration?: number
+          estimated_loss?: number
+          id?: string
+          implementation_fee?: number
+          integration_needs?: string
+          people_involved?: number
+          process_to_optimize?: string
+          reasoning?: string
+          recurring_fee?: number
+          security_level?: string
+          support_level?: string
+          team_seniority?: string
+          team_size?: number
+          time_spent?: number
+          tools?: Json
+          updated_at?: string | null
+          urgency?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
