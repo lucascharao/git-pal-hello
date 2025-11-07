@@ -124,9 +124,38 @@ Gere APENAS o JSON válido com esses campos. Use técnicas de negociação do FB
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: "Você é Chris Voss AI, especialista em negociação do FBI aplicada a precificação de IA. Responda APENAS em JSON válido seguindo o template fornecido." },
+          { role: "system", content: "Você é Chris Voss AI, especialista em negociação do FBI aplicada a precificação de IA." },
           { role: "user", content: prompt }
         ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "generate_quote",
+              description: "Gera um orçamento estratégico usando técnicas Chris Voss",
+              parameters: {
+                type: "object",
+                properties: {
+                  implementationFee: {
+                    type: "number",
+                    description: "Valor total da implementação incluindo custos únicos"
+                  },
+                  recurringFee: {
+                    type: "number",
+                    description: "Valor mensal recorrente incluindo custos mensais"
+                  },
+                  reasoning: {
+                    type: "string",
+                    description: "Justificativa completa do orçamento seguindo framework Chris Voss"
+                  }
+                },
+                required: ["implementationFee", "recurringFee", "reasoning"],
+                additionalProperties: false
+              }
+            }
+          }
+        ],
+        tool_choice: { type: "function", function: { name: "generate_quote" } }
       }),
     });
 
@@ -147,10 +176,13 @@ Gere APENAS o JSON válido com esses campos. Use técnicas de negociação do FB
     }
 
     const data = await response.json();
-    const content = data.choices[0].message.content;
+    const toolCall = data.choices[0].message.tool_calls?.[0];
     
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    const quote = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(content);
+    if (!toolCall || !toolCall.function) {
+      throw new Error("AI did not return structured output");
+    }
+
+    const quote = JSON.parse(toolCall.function.arguments);
 
     return new Response(JSON.stringify(quote), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

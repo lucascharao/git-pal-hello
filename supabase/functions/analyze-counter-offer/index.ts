@@ -134,9 +134,47 @@ Gere APENAS o JSON válido seguindo essa estrutura.`;
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: "Você é Chris Voss AI, especialista em negociação do FBI. Responda APENAS em JSON válido." },
+          { role: "system", content: "Você é Chris Voss AI, especialista em negociação do FBI." },
           { role: "user", content: prompt }
         ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "analyze_counter_offer",
+              description: "Analisa contraproposta usando técnicas Chris Voss",
+              parameters: {
+                type: "object",
+                properties: {
+                  recommendation: {
+                    type: "string",
+                    enum: ["ACCEPT", "COUNTER", "DECLINE"],
+                    description: "Recomendação estratégica"
+                  },
+                  analysis: {
+                    type: "string",
+                    description: "Análise completa da contraproposta"
+                  },
+                  suggestedResponse: {
+                    type: "string",
+                    description: "Copy pronta para enviar ao cliente"
+                  },
+                  newOffer: {
+                    type: "object",
+                    properties: {
+                      implementationFee: { type: "number" },
+                      recurringFee: { type: "number" }
+                    },
+                    description: "Nova proposta se COUNTER, ou proposta do cliente se ACCEPT"
+                  }
+                },
+                required: ["recommendation", "analysis", "suggestedResponse"],
+                additionalProperties: false
+              }
+            }
+          }
+        ],
+        tool_choice: { type: "function", function: { name: "analyze_counter_offer" } }
       }),
     });
 
@@ -157,10 +195,13 @@ Gere APENAS o JSON válido seguindo essa estrutura.`;
     }
 
     const data = await response.json();
-    const content = data.choices[0].message.content;
+    const toolCall = data.choices[0].message.tool_calls?.[0];
     
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    const analysis = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(content);
+    if (!toolCall || !toolCall.function) {
+      throw new Error("AI did not return structured output");
+    }
+
+    const analysis = JSON.parse(toolCall.function.arguments);
 
     return new Response(JSON.stringify(analysis), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
