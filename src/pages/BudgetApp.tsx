@@ -6,7 +6,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { QuoteForm } from '@/components/QuoteForm';
 import { ResultSection } from '@/components/ResultSection';
-import type { ProjectData, Quote } from '@/types';
+import { CounterOfferSection } from '@/components/CounterOfferSection';
+import { CounterOfferAnalysis } from '@/components/CounterOfferAnalysis';
+import type { ProjectData, Quote, CounterOfferAnalysis as CounterOfferAnalysisType } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
 export default function BudgetApp() {
@@ -14,6 +16,7 @@ export default function BudgetApp() {
   const navigate = useNavigate();
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const [quote, setQuote] = useState<Quote | null>(null);
+  const [counterOfferAnalysis, setCounterOfferAnalysis] = useState<CounterOfferAnalysisType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogout = async () => {
@@ -49,6 +52,10 @@ export default function BudgetApp() {
     }
   };
 
+  const handleAnalysisComplete = (analysis: CounterOfferAnalysisType) => {
+    setCounterOfferAnalysis(analysis);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
@@ -74,11 +81,23 @@ export default function BudgetApp() {
               projectData={projectData}
               isLoading={false}
             />
+            
+            {!counterOfferAnalysis ? (
+              <CounterOfferSection 
+                quote={quote}
+                projectData={projectData!}
+                onAnalysisComplete={handleAnalysisComplete}
+              />
+            ) : (
+              <CounterOfferAnalysis analysis={counterOfferAnalysis} />
+            )}
+            
             <Button 
               variant="outline" 
               onClick={() => {
                 setQuote(null);
                 setProjectData(null);
+                setCounterOfferAnalysis(null);
               }}
               className="w-full"
             >
