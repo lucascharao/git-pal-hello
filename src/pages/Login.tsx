@@ -30,7 +30,7 @@ export default function Login() {
         toast({
           variant: 'destructive',
           title: 'Erro de validação',
-          description: error.errors[0].message,
+          description: error.issues[0].message,
         });
         return;
       }

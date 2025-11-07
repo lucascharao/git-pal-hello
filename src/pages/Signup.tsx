@@ -1,13 +1,13 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LogoIcon } from '@/components/icons/LogoIcon';
 import { Spinner } from '@/components/Spinner';
 import { supabase } from '@/integrations/supabase/client';
-import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
-import { z } from 'zod';
 
 const signupSchema = z.object({
   fullName: z.string()
@@ -68,7 +68,7 @@ export default function Signup() {
         toast({
           variant: 'destructive',
           title: 'Erro de validação',
-          description: error.errors[0].message,
+          description: error.issues[0].message,
         });
         return;
       }
