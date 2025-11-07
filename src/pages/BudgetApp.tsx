@@ -16,6 +16,7 @@ export default function BudgetApp() {
   const navigate = useNavigate();
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const [quote, setQuote] = useState<Quote | null>(null);
+  const [quoteId, setQuoteId] = useState<string | null>(null);
   const [counterOfferAnalysis, setCounterOfferAnalysis] = useState<CounterOfferAnalysisType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -37,6 +38,39 @@ export default function BudgetApp() {
       if (error) throw error;
 
       setQuote(response);
+
+      // Salvar orçamento no banco de dados
+      const { data: savedQuote, error: saveError } = await supabase
+        .from('quotes')
+        .insert([{
+          user_id: user?.id,
+          client_value: data.clientValue,
+          client_size: data.clientSize,
+          duration: data.duration,
+          complexity: data.complexity,
+          urgency: data.urgency,
+          integration_needs: data.integrationNeeds,
+          security_level: data.securityLevel,
+          team_size: data.teamSize,
+          team_seniority: data.teamSeniority,
+          support_level: data.supportLevel,
+          desired_margin: data.desiredMargin,
+          annual_revenue: data.annualRevenue,
+          process_to_optimize: data.processToOptimize,
+          time_spent: data.timeSpent,
+          people_involved: data.peopleInvolved,
+          estimated_loss: data.estimatedLoss,
+          tools: data.tools as any,
+          implementation_fee: response.implementationFee,
+          recurring_fee: response.recurringFee,
+          reasoning: response.reasoning,
+        }])
+        .select()
+        .single();
+
+      if (saveError) throw saveError;
+      setQuoteId(savedQuote.id);
+
       toast({
         title: 'Orçamento gerado!',
         description: 'Seu orçamento foi criado com sucesso.',
@@ -52,8 +86,26 @@ export default function BudgetApp() {
     }
   };
 
-  const handleAnalysisComplete = (analysis: CounterOfferAnalysisType) => {
+  const handleAnalysisComplete = async (analysis: CounterOfferAnalysisType, clientOffer: { implementation: number; recurring: number }) => {
     setCounterOfferAnalysis(analysis);
+
+    // Salvar contraproposta no banco
+    if (quoteId) {
+      try {
+        await supabase.from('counter_offers').insert({
+          quote_id: quoteId,
+          client_implementation: clientOffer.implementation,
+          client_recurring: clientOffer.recurring,
+          recommendation: analysis.recommendation,
+          analysis: analysis.analysis,
+          suggested_response: analysis.suggestedResponse,
+          new_implementation_fee: analysis.newOffer?.implementationFee,
+          new_recurring_fee: analysis.newOffer?.recurringFee,
+        });
+      } catch (error) {
+        console.error('Erro ao salvar contraproposta:', error);
+      }
+    }
   };
 
   return (
@@ -65,6 +117,12 @@ export default function BudgetApp() {
             <span className="text-xl font-bold">IA Budget Generator</span>
           </div>
           <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/history')}
+            >
+              Histórico
+            </Button>
             <span className="text-sm text-muted-foreground">{user?.email}</span>
             <Button variant="outline" onClick={handleLogout}>Sair</Button>
           </div>
@@ -79,6 +137,7 @@ export default function BudgetApp() {
             <ResultSection
               quote={quote}
               projectData={projectData}
+              quoteId={quoteId}
               isLoading={false}
             />
             
@@ -86,6 +145,7 @@ export default function BudgetApp() {
               <CounterOfferSection 
                 quote={quote}
                 projectData={projectData!}
+                quoteId={quoteId}
                 onAnalysisComplete={handleAnalysisComplete}
               />
             ) : (
@@ -97,6 +157,7 @@ export default function BudgetApp() {
               onClick={() => {
                 setQuote(null);
                 setProjectData(null);
+                setQuoteId(null);
                 setCounterOfferAnalysis(null);
               }}
               className="w-full"

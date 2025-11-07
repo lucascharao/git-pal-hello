@@ -5,6 +5,7 @@ import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
 import { Loader2, Send } from 'lucide-react';
 import { useToast } from './ui/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import type { Quote, ProjectData, ChatMessage } from '@/types';
 
 interface ChatDialogProps {
@@ -12,9 +13,10 @@ interface ChatDialogProps {
   onOpenChange: (open: boolean) => void;
   quote: Quote;
   projectData: ProjectData;
+  quoteId: string | null;
 }
 
-export function ChatDialog({ open, onOpenChange, quote, projectData }: ChatDialogProps) {
+export function ChatDialog({ open, onOpenChange, quote, projectData, quoteId }: ChatDialogProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -38,6 +40,15 @@ export function ChatDialog({ open, onOpenChange, quote, projectData }: ChatDialo
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+
+    // Salvar mensagem do usuário no banco
+    if (quoteId) {
+      await supabase.from('chat_messages').insert({
+        quote_id: quoteId,
+        role: 'user',
+        content: userMessage.content,
+      });
+    }
 
     try {
       const response = await fetch(
@@ -99,6 +110,15 @@ export function ChatDialog({ open, onOpenChange, quote, projectData }: ChatDialo
             }
           }
         }
+      }
+
+      // Salvar mensagem do assistente no banco
+      if (quoteId && assistantMessage) {
+        await supabase.from('chat_messages').insert({
+          quote_id: quoteId,
+          role: 'assistant',
+          content: assistantMessage,
+        });
       }
     } catch (error) {
       console.error('Erro no chat:', error);

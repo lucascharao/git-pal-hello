@@ -8,10 +8,11 @@ import type { Quote, ProjectData } from '@/types';
 interface ResultSectionProps {
   quote: Quote;
   projectData: ProjectData;
+  quoteId: string | null;
   isLoading: boolean;
 }
 
-export function ResultSection({ quote, projectData, isLoading }: ResultSectionProps) {
+export function ResultSection({ quote, projectData, quoteId, isLoading }: ResultSectionProps) {
   const [chatOpen, setChatOpen] = useState(false);
 
   if (isLoading) {
@@ -93,6 +94,7 @@ export function ResultSection({ quote, projectData, isLoading }: ResultSectionPr
         onOpenChange={setChatOpen}
         quote={quote}
         projectData={projectData}
+        quoteId={quoteId}
       />
     </>
   );

@@ -11,10 +11,11 @@ import { Loader2 } from 'lucide-react';
 interface CounterOfferSectionProps {
   quote: Quote;
   projectData: ProjectData;
-  onAnalysisComplete: (analysis: CounterOfferAnalysis) => void;
+  quoteId: string | null;
+  onAnalysisComplete: (analysis: CounterOfferAnalysis, clientOffer: { implementation: number; recurring: number }) => void;
 }
 
-export function CounterOfferSection({ quote, projectData, onAnalysisComplete }: CounterOfferSectionProps) {
+export function CounterOfferSection({ quote, projectData, quoteId, onAnalysisComplete }: CounterOfferSectionProps) {
   const [implementation, setImplementation] = useState('');
   const [recurring, setRecurring] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -58,7 +59,10 @@ export function CounterOfferSection({ quote, projectData, onAnalysisComplete }: 
 
       if (error) throw error;
 
-      onAnalysisComplete(data);
+      onAnalysisComplete(data, {
+        implementation: implementationValue,
+        recurring: recurringValue,
+      });
       
       toast({
         title: "Análise concluída",
