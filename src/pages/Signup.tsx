@@ -10,7 +10,19 @@ import { toast } from '@/hooks/use-toast';
 import { z } from 'zod';
 
 const signupSchema = z.object({
-  email: z.string().email('E-mail inválido'),
+  fullName: z.string()
+    .trim()
+    .min(3, 'Nome deve ter no mínimo 3 caracteres')
+    .max(100, 'Nome deve ter no máximo 100 caracteres'),
+  email: z.string()
+    .trim()
+    .email('E-mail inválido')
+    .max(255, 'E-mail deve ter no máximo 255 caracteres'),
+  whatsapp: z.string()
+    .trim()
+    .regex(/^\+?[1-9]\d{1,14}$|^\(\d{2}\)\s?9?\d{4}-?\d{4}$/, 
+      'WhatsApp inválido. Use formato: (11) 99999-9999 ou +5511999999999'
+    ),
   password: z.string()
     .min(8, 'Senha deve ter no mínimo 8 caracteres')
     .regex(/[A-Z]/, 'Senha deve conter pelo menos uma letra maiúscula')
@@ -20,10 +32,22 @@ const signupSchema = z.object({
 });
 
 export default function Signup() {
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  const formatWhatsApp = (value: string) => {
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned.length <= 11) {
+      return cleaned
+        .replace(/^(\d{2})(\d)/g, '($1) $2')
+        .replace(/(\d)(\d{4})$/, '$1-$2');
+    }
+    return value;
+  };
 
   const passwordValidation = useMemo(() => {
     const hasUpperCase = /[A-Z]/.test(password);
@@ -38,7 +62,7 @@ export default function Signup() {
     e.preventDefault();
     
     try {
-      signupSchema.parse({ email, password });
+      signupSchema.parse({ fullName, email, whatsapp, password });
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast({
@@ -53,22 +77,42 @@ export default function Signup() {
     setIsLoading(true);
     
     try {
-      const { error } = await supabase.auth.signUp({
+      const { error, data } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/app`,
+          data: {
+            full_name: fullName,
+            whatsapp: whatsapp,
+          }
         },
       });
 
       if (error) throw error;
 
+      // Enviar notificação por email
+      if (data.user) {
+        try {
+          await supabase.functions.invoke('notify-new-user', {
+            body: {
+              fullName,
+              email,
+              whatsapp,
+            },
+          });
+        } catch (notifyError) {
+          console.error('Erro ao enviar notificação:', notifyError);
+          // Não bloqueia o cadastro se a notificação falhar
+        }
+      }
+
       toast({
         title: 'Conta criada!',
-        description: 'Bem-vindo ao IA Budget Generator.',
+        description: 'Verifique seu e-mail para confirmar sua conta.',
       });
       
-      navigate('/app');
+      navigate('/login');
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -92,7 +136,20 @@ export default function Signup() {
 
         <form onSubmit={handleSubmit} className="space-y-6 bg-card p-8 rounded-lg border border-border">
           <div>
-            <Label htmlFor="email">E-mail</Label>
+            <Label htmlFor="fullName">Nome Completo *</Label>
+            <Input
+              id="fullName"
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Seu nome completo"
+              disabled={isLoading}
+              required
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="email">E-mail *</Label>
             <Input
               id="email"
               type="email"
@@ -102,6 +159,25 @@ export default function Signup() {
               disabled={isLoading}
               required
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              Você receberá um código de verificação neste e-mail
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="whatsapp">WhatsApp *</Label>
+            <Input
+              id="whatsapp"
+              type="tel"
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(formatWhatsApp(e.target.value))}
+              placeholder="(11) 99999-9999"
+              disabled={isLoading}
+              required
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Formato: (11) 99999-9999 ou +5511999999999
+            </p>
           </div>
 
           <div>

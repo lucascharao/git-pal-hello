@@ -93,6 +93,33 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          created_at: string | null
+          email: string
+          full_name: string
+          id: string
+          updated_at: string | null
+          whatsapp: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          full_name: string
+          id: string
+          updated_at?: string | null
+          whatsapp: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          updated_at?: string | null
+          whatsapp?: string
+        }
+        Relationships: []
+      }
       quotes: {
         Row: {
           annual_revenue: string
