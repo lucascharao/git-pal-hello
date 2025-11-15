@@ -29,7 +29,7 @@ export default function Landing() {
         <section className="flex-1 flex items-center justify-center px-4 py-16 sm:py-24 bg-gradient-to-b from-background to-background/50">
           <div className="container mx-auto text-center">
             <Badge className="mb-6 text-sm px-4 py-2 bg-primary/10 text-primary border-primary/20">
-              ⚡ APENAS OS PRIMEIROS 100 GANHAM 7 DIAS GRÁTIS
+              ⚡ TESTE GRATUITAMENTE E SE SURPREENDA
             </Badge>
             
             <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold tracking-tight mb-6 leading-tight">
