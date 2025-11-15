@@ -8,17 +8,21 @@ import { QuoteForm } from '@/components/QuoteForm';
 import { ResultSection } from '@/components/ResultSection';
 import { CounterOfferSection } from '@/components/CounterOfferSection';
 import { CounterOfferAnalysis } from '@/components/CounterOfferAnalysis';
+import { UpgradeDialog } from '@/components/UpgradeDialog';
+import { useQuoteLimit } from '@/hooks/useQuoteLimit';
 import type { ProjectData, Quote, CounterOfferAnalysis as CounterOfferAnalysisType } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
 export default function BudgetApp() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { canCreateQuote, isFreemium, loading: limitLoading, refreshQuoteLimit } = useQuoteLimit();
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteId, setQuoteId] = useState<string | null>(null);
   const [counterOfferAnalysis, setCounterOfferAnalysis] = useState<CounterOfferAnalysisType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -26,6 +30,12 @@ export default function BudgetApp() {
   };
 
   const handleGenerateQuote = async (data: ProjectData) => {
+    // Check if user can create a quote
+    if (!canCreateQuote) {
+      setShowUpgradeDialog(true);
+      return;
+    }
+
     setIsLoading(true);
     setQuote(null);
     setProjectData(data);
@@ -70,6 +80,9 @@ export default function BudgetApp() {
 
       if (saveError) throw saveError;
       setQuoteId(savedQuote.id);
+
+      // Refresh quote limit after creating a quote
+      await refreshQuoteLimit();
 
       toast({
         title: 'Orçamento gerado!',
@@ -167,6 +180,11 @@ export default function BudgetApp() {
           </div>
         )}
       </main>
+
+      <UpgradeDialog 
+        open={showUpgradeDialog} 
+        onOpenChange={setShowUpgradeDialog}
+      />
     </div>
   );
 }
