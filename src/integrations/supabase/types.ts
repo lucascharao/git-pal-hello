@@ -93,6 +93,27 @@ export type Database = {
           },
         ]
       }
+      freemium_users: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          notes: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          notes?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          notes?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -206,7 +227,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_quote_count: { Args: { user_uuid: string }; Returns: number }
+      is_freemium_user: { Args: { user_email: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
