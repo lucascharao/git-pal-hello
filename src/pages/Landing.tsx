@@ -17,11 +17,8 @@ export default function Landing() {
           </div>
           <div className="space-x-2 sm:space-x-4">
             <Button variant="outline" onClick={() => navigate('/login')}>Entrar</Button>
-            <Button onClick={() => navigate('/signup')} className="relative">
+            <Button onClick={() => navigate('/signup')}>
               Teste Grátis
-              <span className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground text-xs px-2 py-0.5 rounded-full animate-pulse">
-                7 dias
-              </span>
             </Button>
           </div>
         </nav>
