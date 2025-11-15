@@ -266,7 +266,7 @@ export default function Landing() {
               onClick={() => navigate('/signup')} 
               className="text-xl px-12 py-8 mb-6 shadow-xl hover:shadow-2xl transition-all"
             >
-              🚀 QUERO MEUS 7 DIAS GRÁTIS
+              🚀 TESTE AGORA
             </Button>
             
             <p className="text-sm text-muted-foreground mb-2">
