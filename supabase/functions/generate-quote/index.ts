@@ -1,9 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { checkRateLimit, RateLimitError, getRateLimitHeaders } from '../_shared/rateLimiter.ts';
+import { addSecurityHeaders } from '../_shared/securityHeaders.ts';
+import { logAudit } from '../_shared/auditLogger.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.80.0';
 
-const corsHeaders = {
+const corsHeaders = addSecurityHeaders({
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+});
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -11,7 +15,29 @@ serve(async (req) => {
   }
 
   try {
+    // Rate limiting por IP
+    const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || 'unknown';
+    await checkRateLimit(`generate-quote:${clientIP}`, { maxRequests: 5, windowMs: 60000 });
+
     const { projectData } = await req.json();
+    
+    // Audit log
+    const authHeader = req.headers.get('Authorization');
+    if (authHeader) {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+      const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+      const supabase = createClient(supabaseUrl, supabaseKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+      
+      await logAudit(supabase, {
+        action: 'generate_quote',
+        resourceType: 'quote',
+        metadata: { projectData },
+        ipAddress: clientIP,
+        userAgent: req.headers.get('user-agent') || undefined,
+      });
+    }
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
@@ -108,9 +134,22 @@ MISSÃO: Crie orçamento estratégico Chris Voss com: 1) Mapeamento de valor (co
     });
   } catch (error) {
     console.error('Error:', error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    
+    if (error instanceof RateLimitError) {
+      const clientIP = req.headers.get('x-forwarded-for') || 'unknown';
+      const rateLimitHeaders = getRateLimitHeaders(`generate-quote:${clientIP}`, { maxRequests: 5, windowMs: 60000 });
+      return new Response(
+        JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+        { 
+          headers: { ...corsHeaders, ...rateLimitHeaders, 'Content-Type': 'application/json' }, 
+          status: 429 
+        }
+      );
+    }
+    
+    return new Response(
+      JSON.stringify({ error: 'An error occurred processing your request' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+    );
   }
 });
