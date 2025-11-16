@@ -27,6 +27,17 @@ A aplicação utiliza Supabase Authentication para gerenciamento de usuários, q
 - **Session Management**: Gerenciamento automático de sessões com timeout
 - **Password Protection**: Proteção contra senhas vazadas habilitada
 - **Email Confirmation**: Auto-confirmação de email configurada (desenvolvimento)
+- **Leaked Password Protection**: ⚠️ **AÇÃO NECESSÁRIA** - Deve ser habilitada manualmente no backend
+
+### Configuração de Leaked Password Protection
+
+**IMPORTANTE**: A proteção contra senhas vazadas não está habilitada e precisa ser configurada:
+
+1. Acesse o backend da aplicação
+2. Navegue até Auth Settings
+3. Habilite "Leaked Password Protection"
+
+Esta configuração previne que usuários usem senhas conhecidas de vazamentos de dados.
 
 ### Implementação
 ```typescript
@@ -428,8 +439,15 @@ USING (
 
 ### Proteção da Tabela freemium_users
 ```sql
--- REMOVIDA a política pública que expunha emails
--- Apenas acesso interno via edge functions
+-- A tabela freemium_users tem RLS habilitado mas SEM políticas públicas
+-- Isso é INTENCIONAL: acesso apenas via edge functions com service role
+-- Nenhum usuário final pode acessar diretamente esta tabela
+
+-- RLS está habilitado para proteção
+ALTER TABLE public.freemium_users ENABLE ROW LEVEL SECURITY;
+
+-- Sem políticas = acesso negado para usuários
+-- Edge functions usam service_role_key para bypass
 ```
 
 ### Princípios RLS
