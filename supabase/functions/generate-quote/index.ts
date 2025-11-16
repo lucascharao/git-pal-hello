@@ -3,15 +3,13 @@ import { checkRateLimit, RateLimitError, getRateLimitHeaders } from '../_shared/
 import { addSecurityHeaders } from '../_shared/securityHeaders.ts';
 import { logAudit } from '../_shared/auditLogger.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.80.0';
-
-const corsHeaders = addSecurityHeaders({
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-});
+import { getCorsHeaders, getPreflightHeaders } from '../_shared/corsHelpers.ts';
 
 serve(async (req) => {
+  const corsHeaders = addSecurityHeaders(getCorsHeaders(req));
+  
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: addSecurityHeaders(getPreflightHeaders(req)) });
   }
 
   try {
