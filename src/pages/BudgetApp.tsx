@@ -41,11 +41,21 @@ export default function BudgetApp() {
     setProjectData(data);
 
     try {
+      // Verify user session before making request
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        throw new Error('Sessão expirada. Por favor, faça login novamente.');
+      }
+
       const { data: response, error } = await supabase.functions.invoke('generate-quote', {
         body: { projectData: data }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw error;
+      }
 
       setQuote(response);
 
@@ -89,10 +99,25 @@ export default function BudgetApp() {
         description: 'Seu orçamento foi criado com sucesso.',
       });
     } catch (error: any) {
+      console.error('Erro ao gerar orçamento:', error);
+      
+      let errorMessage = 'Ocorreu um erro. Tente novamente.';
+      
+      if (error.message?.includes('Sessão expirada')) {
+        errorMessage = 'Sua sessão expirou. Por favor, faça login novamente.';
+        await supabase.auth.signOut();
+        navigate('/login');
+        return;
+      } else if (error.message?.includes('Failed to send request')) {
+        errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         variant: 'destructive',
         title: 'Erro ao gerar orçamento',
-        description: error.message || 'Ocorreu um erro. Tente novamente.',
+        description: errorMessage,
       });
     } finally {
       setIsLoading(false);
