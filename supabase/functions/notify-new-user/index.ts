@@ -1,12 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { getCorsHeaders, getPreflightHeaders } from "../_shared/corsHelpers.ts";
+import { validateEmail, validateString } from "../_shared/inputValidation.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
 
 interface NewUserData {
   fullName: string;
@@ -15,12 +12,19 @@ interface NewUserData {
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: getPreflightHeaders(req) });
   }
 
   try {
-    const { fullName, email, whatsapp }: NewUserData = await req.json();
+    const rawData: NewUserData = await req.json();
+
+    // Validate and sanitize all inputs
+    const fullName = validateString(rawData.fullName, 'fullName', 2, 100);
+    const email = validateEmail(rawData.email);
+    const whatsapp = validateString(rawData.whatsapp, 'whatsapp', 10, 20);
 
     console.log('Sending notification for new user:', { fullName, email, whatsapp });
 
