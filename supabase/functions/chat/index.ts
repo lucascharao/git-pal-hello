@@ -1,9 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { checkRateLimit, RateLimitError } from '../_shared/rateLimiter.ts';
+import { addSecurityHeaders } from '../_shared/securityHeaders.ts';
+import { logAudit } from '../_shared/auditLogger.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.80.0';
 
-const corsHeaders = {
+const corsHeaders = addSecurityHeaders({
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+});
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -11,7 +15,29 @@ serve(async (req) => {
   }
 
   try {
+    // Rate limiting por IP
+    const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || 'unknown';
+    await checkRateLimit(`chat:${clientIP}`, { maxRequests: 20, windowMs: 60000 });
+
     const { messages, projectData, quote } = await req.json();
+    
+    // Audit log
+    const authHeader = req.headers.get('Authorization');
+    if (authHeader) {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+      const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+      const supabase = createClient(supabaseUrl, supabaseKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+      
+      await logAudit(supabase, {
+        action: 'chat_message',
+        resourceType: 'chat',
+        metadata: { messageCount: messages?.length },
+        ipAddress: clientIP,
+        userAgent: req.headers.get('user-agent') || undefined,
+      });
+    }
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
@@ -126,9 +152,23 @@ FORMATO DE RESPOSTA:
     });
   } catch (error) {
     console.error('Error:', error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    
+    if (error instanceof RateLimitError) {
+      return new Response(
+        JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+        { 
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+    
+    return new Response(
+      JSON.stringify({ error: 'An error occurred processing your request' }),
+      { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
+    )
   }
 });
