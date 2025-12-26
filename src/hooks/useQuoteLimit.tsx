@@ -1,70 +1,39 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 
+/**
+ * Plano pago removido: todos os usuários têm acesso ilimitado.
+ * Mantemos `quoteCount` apenas como informação (não limita nada).
+ */
 export const useQuoteLimit = () => {
   const { user } = useAuth();
-  const [canCreateQuote, setCanCreateQuote] = useState(true);
-  const [isFreemium, setIsFreemium] = useState(false);
   const [quoteCount, setQuoteCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkQuoteLimit = async () => {
+    const load = async () => {
       if (!user) {
+        setQuoteCount(0);
         setLoading(false);
         return;
       }
 
       try {
-        // Get user's profile to check email
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('email')
-          .eq('id', user.id)
-          .single();
-
-        if (!profile) {
-          setLoading(false);
-          return;
-        }
-
-        // Check if user is freemium
-        const { data: freemiumCheck } = await supabase
-          .from('freemium_users')
-          .select('email')
-          .eq('email', profile.email)
-          .maybeSingle();
-
-        const isFreemiumUser = !!freemiumCheck;
-        setIsFreemium(isFreemiumUser);
-
-        // If freemium, user can always create quotes
-        if (isFreemiumUser) {
-          setCanCreateQuote(true);
-          setLoading(false);
-          return;
-        }
-
-        // For non-freemium users, check quote count
         const { data: quotes } = await supabase
           .from('quotes')
           .select('id')
           .eq('user_id', user.id);
 
-        const count = quotes?.length || 0;
-        setQuoteCount(count);
-        
-        // Non-freemium users can only create 1 quote
-        setCanCreateQuote(count < 1);
+        setQuoteCount(quotes?.length || 0);
       } catch (error) {
-        console.error('Error checking quote limit:', error);
+        console.error('Error checking quote count:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    checkQuoteLimit();
+    load();
   }, [user]);
 
   const refreshQuoteLimit = async () => {
@@ -76,20 +45,15 @@ export const useQuoteLimit = () => {
         .select('id')
         .eq('user_id', user.id);
 
-      const count = quotes?.length || 0;
-      setQuoteCount(count);
-      
-      if (!isFreemium) {
-        setCanCreateQuote(count < 1);
-      }
+      setQuoteCount(quotes?.length || 0);
     } catch (error) {
-      console.error('Error refreshing quote limit:', error);
+      console.error('Error refreshing quote count:', error);
     }
   };
 
   return {
-    canCreateQuote,
-    isFreemium,
+    canCreateQuote: true,
+    isFreemium: true,
     quoteCount,
     loading,
     refreshQuoteLimit,
