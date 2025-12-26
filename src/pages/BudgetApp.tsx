@@ -8,21 +8,17 @@ import { QuoteForm } from '@/components/QuoteForm';
 import { ResultSection } from '@/components/ResultSection';
 import { CounterOfferSection } from '@/components/CounterOfferSection';
 import { CounterOfferAnalysis } from '@/components/CounterOfferAnalysis';
-import { UpgradeDialog } from '@/components/UpgradeDialog';
-import { useQuoteLimit } from '@/hooks/useQuoteLimit';
 import type { ProjectData, Quote, CounterOfferAnalysis as CounterOfferAnalysisType } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
 export default function BudgetApp() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { canCreateQuote, isFreemium, loading: limitLoading, refreshQuoteLimit } = useQuoteLimit();
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteId, setQuoteId] = useState<string | null>(null);
   const [counterOfferAnalysis, setCounterOfferAnalysis] = useState<CounterOfferAnalysisType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -30,26 +26,23 @@ export default function BudgetApp() {
   };
 
   const handleGenerateQuote = async (data: ProjectData) => {
-    // Check if user can create a quote
-    if (!canCreateQuote) {
-      setShowUpgradeDialog(true);
-      return;
-    }
-
     setIsLoading(true);
     setQuote(null);
     setProjectData(data);
 
     try {
       // Verify user session before making request
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
       if (sessionError || !session) {
         throw new Error('Sessão expirada. Por favor, faça login novamente.');
       }
 
       const { data: response, error } = await supabase.functions.invoke('generate-quote', {
-        body: { projectData: data }
+        body: { projectData: data },
       });
 
       if (error) {
@@ -62,37 +55,36 @@ export default function BudgetApp() {
       // Salvar orçamento no banco de dados
       const { data: savedQuote, error: saveError } = await supabase
         .from('quotes')
-        .insert([{
-          user_id: user?.id,
-          client_value: data.clientValue,
-          client_size: data.clientSize,
-          duration: data.duration,
-          complexity: data.complexity,
-          urgency: data.urgency,
-          integration_needs: data.integrationNeeds,
-          security_level: data.securityLevel,
-          team_size: data.teamSize,
-          team_seniority: data.teamSeniority,
-          support_level: data.supportLevel,
-          desired_margin: data.desiredMargin,
-          annual_revenue: data.annualRevenue,
-          process_to_optimize: data.processToOptimize,
-          time_spent: data.timeSpent,
-          people_involved: data.peopleInvolved,
-          estimated_loss: data.estimatedLoss,
-          tools: data.tools as any,
-          implementation_fee: response.implementationFee,
-          recurring_fee: response.recurringFee,
-          reasoning: response.reasoning,
-        }])
+        .insert([
+          {
+            user_id: user?.id,
+            client_value: data.clientValue,
+            client_size: data.clientSize,
+            duration: data.duration,
+            complexity: data.complexity,
+            urgency: data.urgency,
+            integration_needs: data.integrationNeeds,
+            security_level: data.securityLevel,
+            team_size: data.teamSize,
+            team_seniority: data.teamSeniority,
+            support_level: data.supportLevel,
+            desired_margin: data.desiredMargin,
+            annual_revenue: data.annualRevenue,
+            process_to_optimize: data.processToOptimize,
+            time_spent: data.timeSpent,
+            people_involved: data.peopleInvolved,
+            estimated_loss: data.estimatedLoss,
+            tools: data.tools as any,
+            implementation_fee: response.implementationFee,
+            recurring_fee: response.recurringFee,
+            reasoning: response.reasoning,
+          },
+        ])
         .select()
         .single();
 
       if (saveError) throw saveError;
       setQuoteId(savedQuote.id);
-
-      // Refresh quote limit after creating a quote
-      await refreshQuoteLimit();
 
       toast({
         title: 'Orçamento gerado!',
@@ -100,9 +92,9 @@ export default function BudgetApp() {
       });
     } catch (error: any) {
       console.error('Erro ao gerar orçamento:', error);
-      
+
       let errorMessage = 'Ocorreu um erro. Tente novamente.';
-      
+
       if (error.message?.includes('Sessão expirada')) {
         errorMessage = 'Sua sessão expirou. Por favor, faça login novamente.';
         await supabase.auth.signOut();
@@ -113,7 +105,7 @@ export default function BudgetApp() {
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       toast({
         variant: 'destructive',
         title: 'Erro ao gerar orçamento',
@@ -124,7 +116,10 @@ export default function BudgetApp() {
     }
   };
 
-  const handleAnalysisComplete = async (analysis: CounterOfferAnalysisType, clientOffer: { implementation: number; recurring: number }) => {
+  const handleAnalysisComplete = async (
+    analysis: CounterOfferAnalysisType,
+    clientOffer: { implementation: number; recurring: number }
+  ) => {
     setCounterOfferAnalysis(analysis);
 
     // Salvar contraproposta no banco
@@ -155,14 +150,13 @@ export default function BudgetApp() {
             <span className="text-xl font-bold">IA Budget Generator</span>
           </div>
           <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              onClick={() => navigate('/history')}
-            >
+            <Button variant="ghost" onClick={() => navigate('/history')}>
               Histórico
             </Button>
             <span className="text-sm text-muted-foreground">{user?.email}</span>
-            <Button variant="outline" onClick={handleLogout}>Sair</Button>
+            <Button variant="outline" onClick={handleLogout}>
+              Sair
+            </Button>
           </div>
         </div>
       </header>
@@ -172,15 +166,10 @@ export default function BudgetApp() {
           <QuoteForm onSubmit={handleGenerateQuote} isLoading={isLoading} />
         ) : (
           <div className="space-y-6">
-            <ResultSection
-              quote={quote}
-              projectData={projectData}
-              quoteId={quoteId}
-              isLoading={false}
-            />
-            
+            <ResultSection quote={quote} projectData={projectData} quoteId={quoteId} isLoading={false} />
+
             {!counterOfferAnalysis ? (
-              <CounterOfferSection 
+              <CounterOfferSection
                 quote={quote}
                 projectData={projectData!}
                 quoteId={quoteId}
@@ -189,9 +178,9 @@ export default function BudgetApp() {
             ) : (
               <CounterOfferAnalysis analysis={counterOfferAnalysis} />
             )}
-            
-            <Button 
-              variant="outline" 
+
+            <Button
+              variant="outline"
               onClick={() => {
                 setQuote(null);
                 setProjectData(null);
@@ -205,11 +194,6 @@ export default function BudgetApp() {
           </div>
         )}
       </main>
-
-      <UpgradeDialog 
-        open={showUpgradeDialog} 
-        onOpenChange={setShowUpgradeDialog}
-      />
     </div>
   );
 }
