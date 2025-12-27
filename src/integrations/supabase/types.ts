@@ -155,6 +155,7 @@ export type Database = {
           created_at: string | null
           email: string
           full_name: string
+          gemini_api_key: string | null
           id: string
           updated_at: string | null
           whatsapp: string
@@ -163,6 +164,7 @@ export type Database = {
           created_at?: string | null
           email: string
           full_name: string
+          gemini_api_key?: string | null
           id: string
           updated_at?: string | null
           whatsapp: string
@@ -171,6 +173,7 @@ export type Database = {
           created_at?: string | null
           email?: string
           full_name?: string
+          gemini_api_key?: string | null
           id?: string
           updated_at?: string | null
           whatsapp?: string

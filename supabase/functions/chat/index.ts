@@ -19,28 +19,54 @@ serve(async (req) => {
 
     const { messages, projectData, quote } = await req.json();
     
-    // Audit log
+    // Get user's API key from profile
     const authHeader = req.headers.get('Authorization');
-    if (authHeader) {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-      const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
-      const supabase = createClient(supabaseUrl, supabaseKey, {
-        global: { headers: { Authorization: authHeader } }
-      });
-      
-      await logAudit(supabase, {
-        action: 'chat_message',
-        resourceType: 'chat',
-        metadata: { messageCount: messages?.length },
-        ipAddress: clientIP,
-        userAgent: req.headers.get('user-agent') || undefined,
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Get user from auth
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get user's Gemini API key from profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('gemini_api_key')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile?.gemini_api_key) {
+      return new Response(JSON.stringify({ error: 'Gemini API key not configured' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const GEMINI_API_KEY = profile.gemini_api_key;
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
+    // Audit log
+    await logAudit(supabase, {
+      action: 'chat_message',
+      resourceType: 'chat',
+      metadata: { messageCount: messages?.length },
+      ipAddress: clientIP,
+      userAgent: req.headers.get('user-agent') || undefined,
+    });
 
     const systemPrompt = `Você é Chris Voss AI, o lendário ex-negociador do FBI transformado em especialista de pricing e negociação de serviços de inteligência artificial.
 
@@ -49,103 +75,97 @@ ORÇAMENTO GERADO: ${JSON.stringify(quote)}
 
 MISSÃO: Responder perguntas, analisar contrapropostas e gerar copy persuasiva usando técnicas de negociação do FBI.
 
-TÉCNICAS OBRIGATÓRIAS EM TODAS AS RESPOSTAS:
+TÉCNICAS OBRIGATÓRIAS: Mirroring, Tactical Empathy, Labeling, Calibrated Questions, Loss Aversion.
 
-1. MIRRORING CONVERSACIONAL
-   - Repita as últimas 3-4 palavras importantes do usuário
-   - Use tom similar à comunicação
-   - Reflita linguagem técnica vs. business conforme o perfil
+Seja conversacional mas estratégico. Sempre quantifique ROI quando possível. Termine com pergunta calibrada ou próximo passo claro.`;
 
-2. TACTICAL EMPATHY
-   - "Parece que você está preocupado com..."
-   - "Posso sentir que... é uma pressão real"
-   - "Entendo que... pode ser desafiadora"
-   - "Vejo que vocês querem ter certeza..."
+    // Build conversation for Gemini
+    const contents = [];
+    
+    // Add system prompt as first user message
+    contents.push({
+      role: "user",
+      parts: [{ text: systemPrompt }]
+    });
+    contents.push({
+      role: "model",
+      parts: [{ text: "Entendido. Estou pronto para ajudar com técnicas de negociação Chris Voss." }]
+    });
 
-3. LABELING ESTRATÉGICO
-   - "Parece que vocês estão priorizando..."
-   - "Você pode estar preocupado com..."
-   - "Acredito que vocês querem garantia de..."
-   - "Vocês provavelmente precisam de..."
-   - "Imagino que o ROI seja fundamental..."
+    // Add conversation history
+    for (const msg of messages) {
+      contents.push({
+        role: msg.role === "user" ? "user" : "model",
+        parts: [{ text: msg.content }]
+      });
+    }
 
-4. CALIBRATED QUESTIONS
-   - "O que você precisa ver para se sentir confiante?"
-   - "Como podemos tornar isso mais adequado?"
-   - "O que acontece se não resolvermos isso agora?"
-   - "Como você enxerga o impacto disso no seu negócio?"
-   - "Qual métrica seria mais importante para demonstrar sucesso?"
-
-5. ANÁLISE DE CONTRAPROPOSTAS
-   Quando o usuário apresentar objeção ou contraproposta, identifique o TIPO:
-   - ORÇAMENTÁRIA: "Não temos budget"
-   - TEMPORAL: "Precisamos de mais tempo"
-   - TÉCNICA: "Não entendemos a tecnologia"
-   - POLÍTICA: "Preciso de aprovação superior"
-   - COMPETITIVA: "Temos outras opções"
-   - EMOCIONAL: "Não me sinto seguro"
-
-   E responda com estrutura:
-   ├── COMPREENDO SUA POSIÇÃO: [Validação empática]
-   ├── NOVA PERSPECTIVA: [Reframe do valor]
-   ├── CUSTO DA HESITAÇÃO: [O que se perde com delay]
-   ├── PROPOSTA AJUSTADA: [Se aplicável]
-   ├── REDUÇÃO DE RISCO: [Garantias]
-   └── PRÓXIMO PASSO: [Call-to-action suave]
-
-6. LOSS AVERSION TRIGGERS
-   - "Cada mês de delay representa X em oportunidades perdidas"
-   - "O custo da inação pode superar o investimento"
-   - "Enquanto vocês avaliam, concorrentes podem estar implementando"
-
-7. PRINCÍPIOS CHRIS VOSS
-   - "No is the beginning": Use objeções como oportunidade
-   - "Getting to That's Right": Busque confirmação genuína
-   - "Black Swan Mining": Descubra informações game-changing
-   - Negociação é sobre criar valor mútuo, não vencer
-
-FORMATO DE RESPOSTA:
-- Seja conversacional mas estratégico
-- Sempre quantifique ROI quando possível
-- Use números específicos, não estimativas vagas
-- Termine com pergunta calibrada ou próximo passo claro
-- Mantenha foco no valor, não no preço
-
-"Lembre-se: negociação não é sobre vencer, é sobre descobrir o que realmente importa e criar valor mútuo."`;
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Call Google Gemini API with streaming
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?key=${GEMINI_API_KEY}&alt=sse`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages
-        ],
-        stream: true,
+        contents: contents,
+        generationConfig: {
+          temperature: 0.8,
+          maxOutputTokens: 2048,
+        }
       }),
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Gemini API error:', response.status, errorText);
+      
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limits exceeded" }), {
           status: 429,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required" }), {
-          status: 402,
+      if (response.status === 401 || response.status === 403) {
+        return new Response(JSON.stringify({ error: "Invalid Gemini API key" }), {
+          status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      throw new Error("AI gateway error");
+      throw new Error("Gemini API error");
     }
 
-    return new Response(response.body, {
+    // Transform Gemini SSE to OpenAI-compatible SSE format
+    const transformStream = new TransformStream({
+      transform(chunk, controller) {
+        const text = new TextDecoder().decode(chunk);
+        const lines = text.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+              if (content) {
+                const openAIFormat = {
+                  choices: [{
+                    delta: { content },
+                    index: 0
+                  }]
+                };
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(openAIFormat)}\n\n`));
+              }
+            } catch (e) {
+              // Skip invalid JSON
+            }
+          }
+        }
+      },
+      flush(controller) {
+        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+      }
+    });
+
+    return new Response(response.body?.pipeThrough(transformStream), {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (error) {
