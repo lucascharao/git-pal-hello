@@ -3,6 +3,8 @@
 // Allowed origins for CORS
 const ALLOWED_ORIGINS = [
   'https://glwlvjbiamrizmxjblpi.lovableproject.com',
+  'https://budgetgenerator.lovable.app',
+  'https://budgetgenerator.pro',
   'http://localhost:5173',
   'http://localhost:8081',
 ];
