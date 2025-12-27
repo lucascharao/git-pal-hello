@@ -55,12 +55,16 @@ export default function BudgetApp() {
         error: sessionError,
       } = await supabase.auth.getSession();
 
-      if (sessionError || !session) {
+      if (sessionError || !session?.access_token) {
         throw new Error('Sessão expirada. Por favor, faça login novamente.');
       }
 
+      // IMPORTANT: pass the JWT explicitly (some deploy environments may not attach it automatically)
       const { data: response, error } = await supabase.functions.invoke('generate-quote', {
         body: { projectData: data },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
       if (error) {
