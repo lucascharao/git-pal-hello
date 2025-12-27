@@ -19,28 +19,54 @@ serve(async (req) => {
 
     const { projectData } = await req.json();
     
-    // Audit log
+    // Get user's API key from profile
     const authHeader = req.headers.get('Authorization');
-    if (authHeader) {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-      const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
-      const supabase = createClient(supabaseUrl, supabaseKey, {
-        global: { headers: { Authorization: authHeader } }
-      });
-      
-      await logAudit(supabase, {
-        action: 'generate_quote',
-        resourceType: 'quote',
-        metadata: { projectData },
-        ipAddress: clientIP,
-        userAgent: req.headers.get('user-agent') || undefined,
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Get user from auth
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get user's Gemini API key from profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('gemini_api_key')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile?.gemini_api_key) {
+      return new Response(JSON.stringify({ error: 'Gemini API key not configured. Please add your API key in settings.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const GEMINI_API_KEY = profile.gemini_api_key;
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
+    // Audit log
+    await logAudit(supabase, {
+      action: 'generate_quote',
+      resourceType: 'quote',
+      metadata: { projectData },
+      ipAddress: clientIP,
+      userAgent: req.headers.get('user-agent') || undefined,
+    });
 
     const totalUniqueCost = projectData.tools
       .filter((t: any) => t.costType === 'Custo Único')
@@ -56,76 +82,71 @@ DADOS DO PROJETO: Valor percebido: ${projectData.clientValue}, Cliente: ${projec
 
 CUSTOS FIXOS: Único: R$ ${totalUniqueCost}, Mensal: R$ ${totalMonthlyCost}.
 
-MISSÃO: Crie orçamento estratégico Chris Voss com: 1) Mapeamento de valor (complexidade técnica + ROI baseado em R$ ${projectData.estimatedLoss}/mês de perda), 2) Framework Never Split The Difference (diagnóstico do problema, implicação anualizada, solução via IA/automação, investimento justificado, ROI explícito), 3) Técnicas psicológicas (anchor price, tactical empathy, loss aversion: cada mês sem isso custa R$ ${projectData.estimatedLoss}). Gere implementationFee (incluindo R$ ${totalUniqueCost} de custos únicos), recurringFee (incluindo R$ ${totalMonthlyCost} mensais) e reasoning profissional com DIAGNÓSTICO + IMPACTO FINANCEIRO ATUAL (R$ ${projectData.estimatedLoss}/mês = R$ ${projectData.estimatedLoss * 12}/ano perdido) + SOLUÇÃO + INVESTIMENTO + MENSALIDADE + ROI PROJETADO + ANÁLISE CHRIS VOSS (não é custo, é investimento) + CUSTO DA INAÇÃO (6 meses = R$ ${projectData.estimatedLoss * 6} perdidos) + GARANTIAS + PRÓXIMO PASSO.`;
+MISSÃO: Crie orçamento estratégico Chris Voss com: 1) Mapeamento de valor (complexidade técnica + ROI baseado em R$ ${projectData.estimatedLoss}/mês de perda), 2) Framework Never Split The Difference (diagnóstico do problema, implicação anualizada, solução via IA/automação, investimento justificado, ROI explícito), 3) Técnicas psicológicas (anchor price, tactical empathy, loss aversion: cada mês sem isso custa R$ ${projectData.estimatedLoss}). 
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+Responda APENAS com um JSON válido no formato:
+{
+  "implementationFee": número (incluindo R$ ${totalUniqueCost} de custos únicos),
+  "recurringFee": número (incluindo R$ ${totalMonthlyCost} mensais),
+  "reasoning": "texto profissional com DIAGNÓSTICO + IMPACTO FINANCEIRO ATUAL (R$ ${projectData.estimatedLoss}/mês = R$ ${projectData.estimatedLoss * 12}/ano perdido) + SOLUÇÃO + INVESTIMENTO + MENSALIDADE + ROI PROJETADO + ANÁLISE CHRIS VOSS (não é custo, é investimento) + CUSTO DA INAÇÃO (6 meses = R$ ${projectData.estimatedLoss * 6} perdidos) + GARANTIAS + PRÓXIMO PASSO"
+}`;
+
+    // Call Google Gemini API directly
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: "Você é Chris Voss AI, especialista em negociação do FBI aplicada a precificação de IA." },
-          { role: "user", content: prompt }
-        ],
-        tools: [
+        contents: [
           {
-            type: "function",
-            function: {
-              name: "generate_quote",
-              description: "Gera um orçamento estratégico usando técnicas Chris Voss",
-              parameters: {
-                type: "object",
-                properties: {
-                  implementationFee: {
-                    type: "number",
-                    description: "Valor total da implementação incluindo custos únicos"
-                  },
-                  recurringFee: {
-                    type: "number",
-                    description: "Valor mensal recorrente incluindo custos mensais"
-                  },
-                  reasoning: {
-                    type: "string",
-                    description: "Justificativa completa do orçamento seguindo framework Chris Voss"
-                  }
-                },
-                required: ["implementationFee", "recurringFee", "reasoning"],
-                additionalProperties: false
-              }
-            }
+            parts: [
+              { text: prompt }
+            ]
           }
         ],
-        tool_choice: { type: "function", function: { name: "generate_quote" } }
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 4096,
+        }
       }),
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Gemini API error:', response.status, errorText);
+      
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limits exceeded" }), {
+        return new Response(JSON.stringify({ error: "Rate limits exceeded on Gemini API" }), {
           status: 429,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required" }), {
-          status: 402,
+      if (response.status === 401 || response.status === 403) {
+        return new Response(JSON.stringify({ error: "Invalid Gemini API key. Please check your API key in settings." }), {
+          status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      throw new Error("AI gateway error");
+      throw new Error("Gemini API error: " + errorText);
     }
 
     const data = await response.json();
-    const toolCall = data.choices[0].message.tool_calls?.[0];
-    
-    if (!toolCall || !toolCall.function) {
-      throw new Error("AI did not return structured output");
+    console.log('Gemini response:', JSON.stringify(data, null, 2));
+
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!content) {
+      throw new Error("No content in Gemini response");
     }
 
-    const quote = JSON.parse(toolCall.function.arguments);
+    // Extract JSON from the response (handle markdown code blocks)
+    let jsonStr = content;
+    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[1].trim();
+    }
+
+    const quote = JSON.parse(jsonStr);
 
     return new Response(JSON.stringify(quote), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -146,7 +167,7 @@ MISSÃO: Crie orçamento estratégico Chris Voss com: 1) Mapeamento de valor (co
     }
     
     return new Response(
-      JSON.stringify({ error: 'An error occurred processing your request' }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'An error occurred processing your request' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }

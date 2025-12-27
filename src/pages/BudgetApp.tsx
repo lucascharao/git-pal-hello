@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { LogoIcon } from '@/components/icons/LogoIcon';
 import { useAuth } from '@/lib/auth';
@@ -8,6 +8,7 @@ import { QuoteForm } from '@/components/QuoteForm';
 import { ResultSection } from '@/components/ResultSection';
 import { CounterOfferSection } from '@/components/CounterOfferSection';
 import { CounterOfferAnalysis } from '@/components/CounterOfferAnalysis';
+import GeminiApiKeyDialog from '@/components/GeminiApiKeyDialog';
 import type { ProjectData, Quote, CounterOfferAnalysis as CounterOfferAnalysisType } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
@@ -19,6 +20,23 @@ export default function BudgetApp() {
   const [quoteId, setQuoteId] = useState<string | null>(null);
   const [counterOfferAnalysis, setCounterOfferAnalysis] = useState<CounterOfferAnalysisType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkApiKey = async () => {
+      if (!user?.id) return;
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('gemini_api_key')
+        .eq('id', user.id)
+        .maybeSingle();
+      
+      setHasApiKey(!!profile?.gemini_api_key);
+    };
+    
+    checkApiKey();
+  }, [user?.id]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -140,6 +158,25 @@ export default function BudgetApp() {
       }
     }
   };
+
+  // Aguardando verificação da API key
+  if (hasApiKey === null) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  // Usuário não tem API key configurada
+  if (!hasApiKey) {
+    return (
+      <GeminiApiKeyDialog 
+        userId={user?.id || ''} 
+        onApiKeySaved={() => setHasApiKey(true)} 
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
