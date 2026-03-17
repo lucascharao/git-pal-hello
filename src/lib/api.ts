@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://178.156.252.22:3001';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 function getToken(): string | null {
   return localStorage.getItem('access_token');
