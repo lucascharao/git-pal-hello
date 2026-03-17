@@ -1,17 +1,29 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { User, Session } from '@supabase/supabase-js';
+import { api, saveTokens, clearTokens } from './api';
+
+interface User {
+  id: string;
+  email: string;
+  fullName: string;
+  hasApiKey: boolean;
+}
 
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
   loading: boolean;
+  login: (email: string, password: string) => Promise<{ error?: string }>;
+  signup: (data: { email: string; password: string; fullName: string; whatsapp: string }) => Promise<{ error?: string }>;
+  logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  session: null,
   loading: true,
+  login: async () => ({}),
+  signup: async () => ({}),
+  logout: () => {},
+  refreshUser: async () => {},
 });
 
 export const useAuth = () => {
@@ -24,27 +36,66 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const loadUser = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      const data = await api.me();
+      if (data) {
+        setUser(data);
+      } else {
+        clearTokens();
+        setUser(null);
+      }
+    } catch {
+      clearTokens();
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    loadUser();
   }, []);
 
+  const login = async (email: string, password: string) => {
+    const data = await api.login(email, password);
+    if (data.error) return { error: data.error };
+
+    saveTokens(data.accessToken, data.refreshToken);
+    setUser({ id: data.user.id, email: data.user.email, fullName: data.user.fullName, hasApiKey: false });
+    await loadUser();
+    return {};
+  };
+
+  const signup = async (signupData: { email: string; password: string; fullName: string; whatsapp: string }) => {
+    const data = await api.signup(signupData);
+    if (data.error) return { error: data.error };
+
+    saveTokens(data.accessToken, data.refreshToken);
+    setUser({ id: data.user.id, email: data.user.email, fullName: data.user.fullName, hasApiKey: false });
+    return {};
+  };
+
+  const logout = () => {
+    clearTokens();
+    setUser(null);
+  };
+
+  const refreshUser = async () => {
+    await loadUser();
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, loading }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

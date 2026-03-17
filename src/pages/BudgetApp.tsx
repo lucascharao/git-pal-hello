@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { LogoIcon } from '@/components/icons/LogoIcon';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import { QuoteForm } from '@/components/QuoteForm';
 import { ResultSection } from '@/components/ResultSection';
@@ -13,33 +13,16 @@ import type { ProjectData, Quote, CounterOfferAnalysis as CounterOfferAnalysisTy
 import { toast } from '@/hooks/use-toast';
 
 export default function BudgetApp() {
-  const { user } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteId, setQuoteId] = useState<string | null>(null);
   const [counterOfferAnalysis, setCounterOfferAnalysis] = useState<CounterOfferAnalysisType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    const checkApiKey = async () => {
-      if (!user?.id) return;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('gemini_api_key')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      setHasApiKey(!!profile?.gemini_api_key);
-    };
-
-    checkApiKey();
-  }, [user?.id]);
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    logout();
     navigate('/');
   };
 
@@ -49,126 +32,21 @@ export default function BudgetApp() {
     setProjectData(data);
 
     try {
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-
-      let accessToken = session?.access_token;
-      const nowInSeconds = Math.floor(Date.now() / 1000);
-
-      if (sessionError || !accessToken || (session?.expires_at && session.expires_at <= nowInSeconds + 30)) {
-        const {
-          data: refreshData,
-          error: refreshError,
-        } = await supabase.auth.refreshSession();
-
-        if (refreshError || !refreshData.session?.access_token) {
-          throw new Error('Sessão expirada. Por favor, faça login novamente.');
-        }
-
-        accessToken = refreshData.session.access_token;
-      }
-
       const aiProvider = localStorage.getItem('ai_provider') || 'gemini';
-
-      const { data: response, error } = await supabase.functions.invoke('generate-quote', {
-        body: { projectData: data, aiProvider },
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (error) {
-        console.error('Edge function error:', error);
-
-        let functionErrorMessage = '';
-        const errorWithContext = error as { context?: Response };
-
-        if (errorWithContext.context) {
-          try {
-            const payload = await errorWithContext.context.clone().json();
-            functionErrorMessage = payload?.error || payload?.message || '';
-          } catch {
-            // Ignore parse error
-          }
-        }
-
-        if (functionErrorMessage) {
-          throw new Error(functionErrorMessage);
-        }
-
-        throw error;
-      }
+      const response = await api.generateQuote(data, aiProvider);
 
       setQuote(response);
+      setQuoteId(response.quoteId);
 
-      const { data: savedQuote, error: saveError } = await supabase
-        .from('quotes')
-        .insert([
-          {
-            user_id: user?.id,
-            client_value: data.clientValue,
-            client_size: data.clientSize,
-            duration: data.duration,
-            complexity: data.complexity,
-            urgency: data.urgency,
-            integration_needs: data.integrationNeeds,
-            security_level: data.securityLevel,
-            team_size: data.teamSize,
-            team_seniority: data.teamSeniority,
-            support_level: data.supportLevel,
-            desired_margin: data.desiredMargin,
-            annual_revenue: data.annualRevenue,
-            process_to_optimize: data.processToOptimize,
-            time_spent: data.timeSpent,
-            people_involved: data.peopleInvolved,
-            estimated_loss: data.estimatedLoss,
-            tools: data.tools as any,
-            implementation_fee: response.implementationFee,
-            recurring_fee: response.recurringFee,
-            reasoning: response.reasoning,
-          },
-        ])
-        .select()
-        .single();
-
-      if (saveError) throw saveError;
-      setQuoteId(savedQuote.id);
-
-      toast({
-        title: 'Orçamento gerado!',
-        description: 'Seu orçamento foi criado com sucesso.',
-      });
+      toast({ title: 'Orçamento gerado!', description: 'Seu orçamento foi criado com sucesso.' });
     } catch (error: any) {
       console.error('Erro ao gerar orçamento:', error);
 
-      let errorMessage = 'Ocorreu um erro. Tente novamente.';
-
-      if (
-        error.message?.includes('Sessão expirada') ||
-        error.message?.includes('Unauthorized') ||
-        error.message?.includes('authorization header') ||
-        error.message?.includes('JWT')
-      ) {
-        errorMessage = 'Sua sessão expirou. Por favor, faça login novamente.';
-        await supabase.auth.signOut();
-        navigate('/login');
-        return;
-      } else if (error.message?.includes('Failed to send request')) {
-        errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
-      } else if (error.message?.includes('API key')) {
-        errorMessage = 'Sua chave API está inválida ou ausente. Atualize a chave e tente novamente.';
-        setHasApiKey(false);
-      } else if (error.message) {
-        errorMessage = error.message;
+      if (error.message?.includes('API key') || error.message?.includes('Chave API')) {
+        await refreshUser();
       }
 
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao gerar orçamento',
-        description: errorMessage,
-      });
+      toast({ variant: 'destructive', title: 'Erro ao gerar orçamento', description: error.message || 'Ocorreu um erro. Tente novamente.' });
     } finally {
       setIsLoading(false);
     }
@@ -179,38 +57,13 @@ export default function BudgetApp() {
     clientOffer: { implementation: number; recurring: number }
   ) => {
     setCounterOfferAnalysis(analysis);
-
-    if (quoteId) {
-      try {
-        await supabase.from('counter_offers').insert({
-          quote_id: quoteId,
-          client_implementation: clientOffer.implementation,
-          client_recurring: clientOffer.recurring,
-          recommendation: analysis.recommendation,
-          analysis: analysis.analysis,
-          suggested_response: analysis.suggestedResponse,
-          new_implementation_fee: analysis.newOffer?.implementationFee,
-          new_recurring_fee: analysis.newOffer?.recurringFee,
-        });
-      } catch (error) {
-        console.error('Erro ao salvar contraproposta:', error);
-      }
-    }
   };
 
-  if (hasApiKey === null) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
-      </div>
-    );
-  }
-
-  if (!hasApiKey) {
+  if (!user?.hasApiKey) {
     return (
       <ApiKeyDialog
         userId={user?.id || ''}
-        onApiKeySaved={() => setHasApiKey(true)}
+        onApiKeySaved={async () => { await refreshUser(); }}
       />
     );
   }
@@ -224,13 +77,9 @@ export default function BudgetApp() {
             <span className="text-xl font-bold">IA Budget Generator</span>
           </div>
           <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => navigate('/history')}>
-              Histórico
-            </Button>
+            <Button variant="ghost" onClick={() => navigate('/history')}>Histórico</Button>
             <span className="text-sm text-muted-foreground">{user?.email}</span>
-            <Button variant="outline" onClick={handleLogout}>
-              Sair
-            </Button>
+            <Button variant="outline" onClick={handleLogout}>Sair</Button>
           </div>
         </div>
       </header>
@@ -255,12 +104,7 @@ export default function BudgetApp() {
 
             <Button
               variant="outline"
-              onClick={() => {
-                setQuote(null);
-                setProjectData(null);
-                setQuoteId(null);
-                setCounterOfferAnalysis(null);
-              }}
+              onClick={() => { setQuote(null); setProjectData(null); setQuoteId(null); setCounterOfferAnalysis(null); }}
               className="w-full"
             >
               Gerar Novo Orçamento

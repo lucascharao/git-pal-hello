@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { LogoIcon } from '@/components/icons/LogoIcon';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/api';
 import { ArrowLeft, MessageCircle, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -19,17 +19,12 @@ interface QuoteHistory {
   implementation_fee: number;
   recurring_fee: number;
   created_at: string;
-  counter_offers: Array<{
-    recommendation: string;
-    created_at: string;
-  }>;
-  chat_messages: Array<{
-    id: string;
-  }>;
+  counter_offers: Array<{ recommendation: string; created_at: string }>;
+  chat_message_count: number;
 }
 
 export default function History() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [quotes, setQuotes] = useState<QuoteHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,27 +35,7 @@ export default function History() {
 
   const loadHistory = async () => {
     try {
-      const { data, error } = await supabase
-        .from('quotes')
-        .select(`
-          id,
-          client_value,
-          client_size,
-          complexity,
-          implementation_fee,
-          recurring_fee,
-          created_at,
-          counter_offers (
-            recommendation,
-            created_at
-          ),
-          chat_messages (
-            id
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const data = await api.listQuotes();
       setQuotes(data || []);
     } catch (error) {
       console.error('Erro ao carregar histórico:', error);
@@ -69,21 +44,17 @@ export default function History() {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    logout();
     navigate('/');
   };
 
   const getRecommendationColor = (recommendation: string) => {
     switch (recommendation) {
-      case 'ACCEPT':
-        return 'bg-green-500';
-      case 'COUNTER':
-        return 'bg-yellow-500';
-      case 'DECLINE':
-        return 'bg-red-500';
-      default:
-        return 'bg-gray-500';
+      case 'ACCEPT': return 'bg-green-500';
+      case 'COUNTER': return 'bg-yellow-500';
+      case 'DECLINE': return 'bg-red-500';
+      default: return 'bg-gray-500';
     }
   };
 
@@ -92,13 +63,8 @@ export default function History() {
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/app')}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Voltar
+            <Button variant="ghost" size="sm" onClick={() => navigate('/app')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />Voltar
             </Button>
             <div className="flex items-center gap-2">
               <LogoIcon className="h-8 w-8 text-primary" />
@@ -107,9 +73,7 @@ export default function History() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">{user?.email}</span>
-            <Button variant="outline" onClick={handleLogout}>
-              Sair
-            </Button>
+            <Button variant="outline" onClick={handleLogout}>Sair</Button>
           </div>
         </div>
       </header>
@@ -118,25 +82,15 @@ export default function History() {
         {isLoading ? (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
-              <Card key={i} className="p-6">
-                <div className="space-y-3">
-                  <Skeleton className="h-6 w-1/3" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-2/3" />
-                </div>
-              </Card>
+              <Card key={i} className="p-6"><div className="space-y-3"><Skeleton className="h-6 w-1/3" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></div></Card>
             ))}
           </div>
         ) : quotes.length === 0 ? (
           <Card className="p-12 text-center">
             <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">Nenhum orçamento encontrado</h3>
-            <p className="text-muted-foreground mb-4">
-              Você ainda não gerou nenhum orçamento.
-            </p>
-            <Button onClick={() => navigate('/app')}>
-              Gerar Primeiro Orçamento
-            </Button>
+            <p className="text-muted-foreground mb-4">Você ainda não gerou nenhum orçamento.</p>
+            <Button onClick={() => navigate('/app')}>Gerar Primeiro Orçamento</Button>
           </Card>
         ) : (
           <div className="space-y-4">
@@ -149,68 +103,40 @@ export default function History() {
                       <Badge variant="outline">{quote.client_size}</Badge>
                       <Badge variant="secondary">{quote.complexity}</Badge>
                     </div>
-
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       <div>
                         <p className="text-sm text-muted-foreground">Implementação</p>
                         <p className="text-xl font-bold text-primary">
-                          {new Intl.NumberFormat('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL',
-                          }).format(quote.implementation_fee)}
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(quote.implementation_fee)}
                         </p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Recorrência</p>
                         <p className="text-xl font-bold text-primary">
-                          {new Intl.NumberFormat('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL',
-                          }).format(quote.recurring_fee)}
-                          /mês
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(quote.recurring_fee)}/mês
                         </p>
                       </div>
                     </div>
-
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <FileText className="h-4 w-4" />
-                        <span>
-                          {format(new Date(quote.created_at), "dd 'de' MMMM 'às' HH:mm", {
-                            locale: ptBR,
-                          })}
-                        </span>
+                        <span>{format(new Date(quote.created_at), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}</span>
                       </div>
-
-                      {quote.chat_messages.length > 0 && (
+                      {quote.chat_message_count > 0 && (
                         <div className="flex items-center gap-1">
                           <MessageCircle className="h-4 w-4" />
-                          <span>{quote.chat_messages.length} mensagens no chat</span>
+                          <span>{quote.chat_message_count} mensagens no chat</span>
                         </div>
                       )}
-
-                      {quote.counter_offers.length > 0 && (
+                      {quote.counter_offers?.length > 0 && (
                         <div className="flex items-center gap-2">
                           {quote.counter_offers.map((offer, index) => (
-                            <Badge
-                              key={index}
-                              className={getRecommendationColor(offer.recommendation)}
-                            >
-                              {offer.recommendation}
-                            </Badge>
+                            <Badge key={index} className={getRecommendationColor(offer.recommendation)}>{offer.recommendation}</Badge>
                           ))}
                         </div>
                       )}
                     </div>
                   </div>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate(`/quote/${quote.id}`)}
-                  >
-                    Ver Detalhes
-                  </Button>
                 </div>
               </Card>
             ))}
