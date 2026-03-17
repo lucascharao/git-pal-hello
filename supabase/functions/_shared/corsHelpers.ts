@@ -5,6 +5,7 @@ const ALLOWED_ORIGINS = [
   'https://glwlvjbiamrizmxjblpi.lovableproject.com',
   'https://budgetgenerator.lovable.app',
   'https://budgetgenerator.pro',
+  'https://budgetgenerator.vercel.app',
   'http://localhost:5173',
   'http://localhost:8081',
 ];
