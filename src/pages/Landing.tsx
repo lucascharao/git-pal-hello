@@ -1,7 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { LogoIcon } from '@/components/icons/LogoIcon';
 import { useNavigate } from 'react-router-dom';
-import { Badge } from '@/components/ui/badge';
 import chrisVossImage from '@/assets/chris-voss.jpeg';
 
 export default function Landing() {
@@ -28,43 +27,39 @@ export default function Landing() {
         {/* Hero Section */}
         <section className="flex-1 flex items-center justify-center px-4 py-16 sm:py-24 bg-gradient-to-b from-background to-background/50">
           <div className="container mx-auto text-center">
-            <Badge className="mb-6 text-sm px-4 py-2 bg-primary/10 text-primary border-primary/20">
-              ⚡ TESTE GRATUITAMENTE E SE SURPREENDA
-            </Badge>
-            
             <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold tracking-tight mb-6 leading-tight">
-              Pare de Perder Dinheiro{' '}
-              <span className="text-primary block mt-2">Deixando Valor na Mesa</span>
+              Orçamentos Inteligentes{' '}
+              <span className="text-primary block mt-2">com IA de Negociação</span>
             </h1>
-            
+
             <p className="text-xl sm:text-2xl text-muted-foreground mb-4 max-w-3xl mx-auto font-medium">
-              A única ferramenta que usa as técnicas do <strong>maior negociador do FBI</strong> para criar orçamentos que seus clientes <strong>PRECISAM aceitar</strong>
+              Gere orçamentos profissionais com justificativa de valor baseada em técnicas de negociação consagradas
             </p>
-            
+
             <p className="text-lg text-muted-foreground/80 mb-10 max-w-2xl mx-auto">
-              Enquanto você cria orçamentos genéricos, seus concorrentes estão fechando 3x mais negócios com IA. Quanto dinheiro você vai perder antes de agir?
+              Preencha os dados do projeto e receba um orçamento completo com estratégia de precificação e argumentação de valor.
             </p>
-            
+
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
-              <Button 
-                size="lg" 
-                onClick={() => navigate('/signup')} 
+              <Button
+                size="lg"
+                onClick={() => navigate('/signup')}
                 className="text-lg px-10 py-7 text-white shadow-lg hover:shadow-xl transition-all"
               >
-                🔥 TESTE AGORA
+                Criar Conta Grátis
               </Button>
-              <Button 
-                size="lg" 
-                variant="outline" 
-                onClick={() => navigate('/login')} 
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => navigate('/login')}
                 className="text-lg px-8 py-7"
               >
                 Já Tenho Conta
               </Button>
             </div>
-            
+
             <p className="text-sm text-muted-foreground">
-              ⏰ Oferta limitada • Sem cartão de crédito • Cancele quando quiser
+              Gratuito para usar. Sem cartão de crédito.
             </p>
           </div>
         </section>
@@ -74,9 +69,6 @@ export default function Landing() {
           <div className="container mx-auto max-w-6xl">
             <div className="grid md:grid-cols-2 gap-12 items-center">
               <div className="order-2 md:order-1">
-                <Badge className="mb-4 bg-primary/10 text-primary border-primary/20">
-                  🎯 TECNOLOGIA EXCLUSIVA
-                </Badge>
                 <h2 className="text-3xl sm:text-4xl font-bold mb-6 leading-tight">
                   Negocie Como o <span className="text-primary">Melhor Negociador do FBI</span>
                 </h2>
@@ -248,32 +240,25 @@ export default function Landing() {
         {/* CTA Final */}
         <section className="py-20 px-4 bg-gradient-to-t from-primary/5 to-background border-t border-border">
           <div className="container mx-auto max-w-4xl text-center">
-            <Badge className="mb-6 text-sm px-4 py-2 bg-destructive/10 text-destructive border-destructive/20 animate-pulse">
-              ⚠️ ÚLTIMAS VAGAS DO TESTE GRÁTIS
-            </Badge>
-            
             <h2 className="text-3xl sm:text-5xl font-bold mb-6 leading-tight">
-              Não Perca Mais Dinheiro.<br/>
-              <span className="text-primary">Comece Grátis Agora.</span>
+              Comece a Gerar<br/>
+              <span className="text-primary">Orçamentos Profissionais</span>
             </h2>
-            
+
             <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
-              Os primeiros 100 cadastrados ganham <strong>7 dias completos de acesso VIP</strong>. Zero risco. Sem cartão de crédito. Cancele quando quiser.
+              Crie sua conta gratuitamente e gere orçamentos inteligentes com IA em minutos.
             </p>
-            
-            <Button 
-              size="lg" 
-              onClick={() => navigate('/signup')} 
+
+            <Button
+              size="lg"
+              onClick={() => navigate('/signup')}
               className="text-xl px-12 py-8 mb-6 shadow-xl hover:shadow-2xl transition-all"
             >
-              🚀 TESTE AGORA
+              Criar Conta Grátis
             </Button>
-            
+
             <p className="text-sm text-muted-foreground mb-2">
-              ✓ Sem compromisso • ✓ Acesso imediato • ✓ Suporte prioritário
-            </p>
-            <p className="text-xs text-muted-foreground/60">
-              Ao se cadastrar, você concorda com nossos Termos de Uso e Política de Privacidade
+              Acesso imediato. Sem cartão de crédito.
             </p>
           </div>
         </section>

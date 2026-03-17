@@ -8,7 +8,7 @@ import { QuoteForm } from '@/components/QuoteForm';
 import { ResultSection } from '@/components/ResultSection';
 import { CounterOfferSection } from '@/components/CounterOfferSection';
 import { CounterOfferAnalysis } from '@/components/CounterOfferAnalysis';
-import GeminiApiKeyDialog from '@/components/GeminiApiKeyDialog';
+import ApiKeyDialog from '@/components/ApiKeyDialog';
 import type { ProjectData, Quote, CounterOfferAnalysis as CounterOfferAnalysisType } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
@@ -25,16 +25,16 @@ export default function BudgetApp() {
   useEffect(() => {
     const checkApiKey = async () => {
       if (!user?.id) return;
-      
+
       const { data: profile } = await supabase
         .from('profiles')
         .select('gemini_api_key')
         .eq('id', user.id)
         .maybeSingle();
-      
+
       setHasApiKey(!!profile?.gemini_api_key);
     };
-    
+
     checkApiKey();
   }, [user?.id]);
 
@@ -49,7 +49,6 @@ export default function BudgetApp() {
     setProjectData(data);
 
     try {
-      // Verify and refresh user session before making request
       const {
         data: { session },
         error: sessionError,
@@ -71,8 +70,10 @@ export default function BudgetApp() {
         accessToken = refreshData.session.access_token;
       }
 
+      const aiProvider = localStorage.getItem('ai_provider') || 'gemini';
+
       const { data: response, error } = await supabase.functions.invoke('generate-quote', {
-        body: { projectData: data },
+        body: { projectData: data, aiProvider },
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
@@ -89,7 +90,7 @@ export default function BudgetApp() {
             const payload = await errorWithContext.context.clone().json();
             functionErrorMessage = payload?.error || payload?.message || '';
           } catch {
-            // Ignore parse error and fallback to generic error handling below
+            // Ignore parse error
           }
         }
 
@@ -102,7 +103,6 @@ export default function BudgetApp() {
 
       setQuote(response);
 
-      // Salvar orçamento no banco de dados
       const { data: savedQuote, error: saveError } = await supabase
         .from('quotes')
         .insert([
@@ -157,8 +157,9 @@ export default function BudgetApp() {
         return;
       } else if (error.message?.includes('Failed to send request')) {
         errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
-      } else if (error.message?.includes('Gemini API key')) {
-        errorMessage = 'Sua chave da API Gemini está inválida ou ausente. Atualize a chave e tente novamente.';
+      } else if (error.message?.includes('API key')) {
+        errorMessage = 'Sua chave API está inválida ou ausente. Atualize a chave e tente novamente.';
+        setHasApiKey(false);
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -179,7 +180,6 @@ export default function BudgetApp() {
   ) => {
     setCounterOfferAnalysis(analysis);
 
-    // Salvar contraproposta no banco
     if (quoteId) {
       try {
         await supabase.from('counter_offers').insert({
@@ -198,7 +198,6 @@ export default function BudgetApp() {
     }
   };
 
-  // Aguardando verificação da API key
   if (hasApiKey === null) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -207,12 +206,11 @@ export default function BudgetApp() {
     );
   }
 
-  // Usuário não tem API key configurada
   if (!hasApiKey) {
     return (
-      <GeminiApiKeyDialog 
-        userId={user?.id || ''} 
-        onApiKeySaved={() => setHasApiKey(true)} 
+      <ApiKeyDialog
+        userId={user?.id || ''}
+        onApiKeySaved={() => setHasApiKey(true)}
       />
     );
   }
