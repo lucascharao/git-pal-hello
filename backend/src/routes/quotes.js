@@ -7,6 +7,7 @@ import {
   callAIProvider,
   extractJSON,
 } from '../services/ai.js';
+import { decrypt } from '../services/crypto.js';
 
 const router = Router();
 
@@ -31,7 +32,7 @@ router.post('/generate', async (req, res) => {
       return res.status(400).json({ error: 'Chave API não configurada.' });
     }
 
-    const apiKey = rows[0].gemini_api_key;
+    const apiKey = decrypt(rows[0].gemini_api_key);
     const prompt = buildQuotePrompt(projectData);
     const content = await callAIProvider(aiProvider, apiKey, prompt);
 
@@ -125,7 +126,7 @@ router.post('/:quoteId/counter-offer', async (req, res) => {
       return res.status(400).json({ error: 'Chave API não configurada.' });
     }
 
-    const apiKey = rows[0].gemini_api_key;
+    const apiKey = decrypt(rows[0].gemini_api_key);
     const aiProvider = req.body.aiProvider || localStorage?.getItem?.('ai_provider') || 'gemini';
     const prompt = buildCounterOfferPrompt(originalQuote, counterOffer, projectData);
     const content = await callAIProvider(aiProvider, apiKey, prompt);

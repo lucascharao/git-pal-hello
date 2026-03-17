@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { buildChatSystemPrompt, callGeminiStreaming } from '../services/ai.js';
+import { decrypt } from '../services/crypto.js';
 
 const router = Router();
 
@@ -20,7 +21,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Chave API não configurada.' });
     }
 
-    const apiKey = rows[0].gemini_api_key;
+    const apiKey = decrypt(rows[0].gemini_api_key);
     const systemPrompt = buildChatSystemPrompt(projectData, quote);
 
     const contents = [

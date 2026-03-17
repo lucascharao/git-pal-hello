@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { pool } from '../db.js';
 import { generateTokens, authMiddleware } from '../middleware/auth.js';
+import { encrypt } from '../services/crypto.js';
 
 const router = Router();
 
@@ -135,9 +136,10 @@ router.post('/api-key', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Chave API é obrigatória.' });
     }
 
+    const encryptedKey = encrypt(apiKey.trim());
     await pool.query(
       'UPDATE profiles SET gemini_api_key = $1, updated_at = now() WHERE id = $2',
-      [apiKey.trim(), req.user.id]
+      [encryptedKey, req.user.id]
     );
 
     res.json({ success: true });
