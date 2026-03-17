@@ -5,7 +5,7 @@ import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
 import { Loader2, Send } from 'lucide-react';
 import { useToast } from './ui/use-toast';
-import { api } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
 import type { Quote, ProjectData, ChatMessage } from '@/types';
 
 interface ChatDialogProps {
@@ -33,62 +33,27 @@ export function ChatDialog({ open, onOpenChange, quote, projectData, quoteId }: 
     if (!input.trim() || isLoading) return;
 
     const userMessage: ChatMessage = { role: 'user', content: input.trim() };
-    setMessages(prev => [...prev, userMessage]);
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setInput('');
     setIsLoading(true);
 
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(api.chatUrl(), {
+      const aiProvider = localStorage.getItem('ai_provider') || 'gemini';
+      const res = await apiFetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ messages: [...messages, userMessage], projectData, quote, quoteId }),
+        body: JSON.stringify({ messages: updatedMessages, projectData, quote, quoteId, aiProvider }),
       });
 
-      if (!response.ok) throw new Error('Erro ao enviar mensagem');
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let assistantMessage = '';
-
-      if (reader) {
-        setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6).trim();
-              if (data === '[DONE]') continue;
-
-              try {
-                const parsed = JSON.parse(data);
-                const content = parsed.choices?.[0]?.delta?.content;
-                if (content) {
-                  assistantMessage += content;
-                  setMessages(prev => {
-                    const newMessages = [...prev];
-                    newMessages[newMessages.length - 1] = { role: 'assistant', content: assistantMessage };
-                    return newMessages;
-                  });
-                }
-              } catch {
-                // skip
-              }
-            }
-          }
-        }
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Erro no chat');
       }
+
+      const data = await res.json();
+      setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
     } catch (error) {
-      toast({ title: 'Erro', description: 'Não foi possível enviar a mensagem', variant: 'destructive' });
+      toast({ title: 'Erro', description: error instanceof Error ? error.message : 'Não foi possível enviar a mensagem', variant: 'destructive' });
       setMessages(prev => prev.slice(0, -1));
     } finally {
       setIsLoading(false);
@@ -108,7 +73,7 @@ export function ChatDialog({ open, onOpenChange, quote, projectData, quoteId }: 
             {messages.length === 0 && (
               <div className="text-center text-muted-foreground py-8">
                 <p>Olá! Sou Chris Voss AI.</p>
-                <p className="text-sm mt-2">Estou aqui para ajudá-lo com dúvidas sobre o orçamento e estratégias de negociação.</p>
+                <p className="text-sm mt-2">Pergunte sobre o orçamento, peça scripts de negociação ou ajuda para responder objeções do cliente.</p>
               </div>
             )}
             {messages.map((message, index) => (
@@ -118,7 +83,7 @@ export function ChatDialog({ open, onOpenChange, quote, projectData, quoteId }: 
                 </div>
               </div>
             ))}
-            {isLoading && messages[messages.length - 1]?.role === 'user' && (
+            {isLoading && (
               <div className="flex justify-start">
                 <div className="bg-muted rounded-lg px-4 py-2"><Loader2 className="h-4 w-4 animate-spin" /></div>
               </div>
