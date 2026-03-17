@@ -145,13 +145,20 @@ export default function BudgetApp() {
 
       let errorMessage = 'Ocorreu um erro. Tente novamente.';
 
-      if (error.message?.includes('Sessão expirada')) {
+      if (
+        error.message?.includes('Sessão expirada') ||
+        error.message?.includes('Unauthorized') ||
+        error.message?.includes('authorization header') ||
+        error.message?.includes('JWT')
+      ) {
         errorMessage = 'Sua sessão expirou. Por favor, faça login novamente.';
         await supabase.auth.signOut();
         navigate('/login');
         return;
       } else if (error.message?.includes('Failed to send request')) {
         errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+      } else if (error.message?.includes('Gemini API key')) {
+        errorMessage = 'Sua chave da API Gemini está inválida ou ausente. Atualize a chave e tente novamente.';
       } else if (error.message) {
         errorMessage = error.message;
       }
