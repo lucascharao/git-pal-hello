@@ -49,26 +49,54 @@ export default function BudgetApp() {
     setProjectData(data);
 
     try {
-      // Verify user session before making request
+      // Verify and refresh user session before making request
       const {
         data: { session },
         error: sessionError,
       } = await supabase.auth.getSession();
 
-      if (sessionError || !session?.access_token) {
-        throw new Error('Sessão expirada. Por favor, faça login novamente.');
+      let accessToken = session?.access_token;
+      const nowInSeconds = Math.floor(Date.now() / 1000);
+
+      if (sessionError || !accessToken || (session?.expires_at && session.expires_at <= nowInSeconds + 30)) {
+        const {
+          data: refreshData,
+          error: refreshError,
+        } = await supabase.auth.refreshSession();
+
+        if (refreshError || !refreshData.session?.access_token) {
+          throw new Error('Sessão expirada. Por favor, faça login novamente.');
+        }
+
+        accessToken = refreshData.session.access_token;
       }
 
-      // IMPORTANT: pass the JWT explicitly (some deploy environments may not attach it automatically)
       const { data: response, error } = await supabase.functions.invoke('generate-quote', {
         body: { projectData: data },
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
       });
 
       if (error) {
         console.error('Edge function error:', error);
+
+        let functionErrorMessage = '';
+        const errorWithContext = error as { context?: Response };
+
+        if (errorWithContext.context) {
+          try {
+            const payload = await errorWithContext.context.clone().json();
+            functionErrorMessage = payload?.error || payload?.message || '';
+          } catch {
+            // Ignore parse error and fallback to generic error handling below
+          }
+        }
+
+        if (functionErrorMessage) {
+          throw new Error(functionErrorMessage);
+        }
+
         throw error;
       }
 
